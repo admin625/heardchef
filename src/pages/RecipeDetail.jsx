@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import DifficultyBadge from '../components/DifficultyBadge'
 
 export default function RecipeDetail() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [recipe, setRecipe] = useState(null)
   const [chef, setChef] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -173,10 +174,7 @@ export default function RecipeDetail() {
           Send Shopping List
         </button>
         <button
-          onClick={() => {
-            console.log('Start Cooking', { recipeId: recipe.id })
-            alert('Guided cooking mode coming soon!')
-          }}
+          onClick={() => navigate(`/cook/${recipe.id}`)}
           className="flex-1 bg-dark-card border-2 border-amber-gold text-amber-gold font-semibold py-3 px-6 rounded-xl hover:bg-amber-gold/10 transition-colors cursor-pointer"
         >
           Start Cooking
