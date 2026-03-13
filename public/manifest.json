@@ -1,0 +1,12 @@
+{
+  "name": "HeardChef",
+  "short_name": "HeardChef",
+  "description": "AI Cooking Companion — Cook with legendary chefs",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a1a",
+  "theme_color": "#1a1a1a",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
