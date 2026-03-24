@@ -58,25 +58,15 @@ export default async (req) => {
         // Update existing user's phone
         await supabase.from('hc_users').update({ phone: phoneNumber }).eq('id', userId)
       } else {
-        // Upsert by phone — create user if not found
-        const { data: existing } = await supabase
+        // Upsert by phone — atomic, no duplicates
+        const { data: upserted } = await supabase
           .from('hc_users')
+          .upsert({ phone: phoneNumber }, { onConflict: 'phone' })
           .select('id')
-          .eq('phone', phoneNumber)
-          .maybeSingle()
+          .single()
 
-        if (!existing) {
-          const { data: newUser } = await supabase
-            .from('hc_users')
-            .insert({ phone: phoneNumber })
-            .select('id')
-            .single()
-
-          if (newUser) {
-            result.userId = newUser.id
-          }
-        } else {
-          result.userId = existing.id
+        if (upserted) {
+          result.userId = upserted.id
         }
       }
     }
