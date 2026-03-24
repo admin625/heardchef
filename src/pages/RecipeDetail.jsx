@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import DifficultyBadge from '../components/DifficultyBadge'
+
+const PHONE_KEY = 'hc_whatsapp_phone'
+const USER_ID_KEY = 'hc_user_id'
 
 export default function RecipeDetail() {
   const { id } = useParams()
@@ -9,6 +12,57 @@ export default function RecipeDetail() {
   const [recipe, setRecipe] = useState(null)
   const [chef, setChef] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [showPhoneModal, setShowPhoneModal] = useState(false)
+  const [phoneInput, setPhoneInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  const showToast = useCallback((message, type = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 4000)
+  }, [])
+
+  const sendShoppingList = useCallback(async (phone) => {
+    if (!recipe) return
+    setSending(true)
+    try {
+      const res = await fetch('/api/send-shopping-list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phoneNumber: phone,
+          recipeName: recipe.title,
+          ingredients: recipe.ingredients || [],
+          portions: recipe.servings,
+          userId: localStorage.getItem(USER_ID_KEY) || null,
+          recipeId: recipe.id,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Send failed')
+
+      // Persist phone and userId
+      localStorage.setItem(PHONE_KEY, phone)
+      if (data.userId) localStorage.setItem(USER_ID_KEY, data.userId)
+
+      setShowPhoneModal(false)
+      showToast('Shopping list sent to WhatsApp!')
+    } catch (err) {
+      showToast(err.message || 'Failed to send shopping list', 'error')
+    } finally {
+      setSending(false)
+    }
+  }, [recipe, showToast])
+
+  const handleShoppingListClick = useCallback(() => {
+    const savedPhone = localStorage.getItem(PHONE_KEY)
+    if (savedPhone) {
+      sendShoppingList(savedPhone)
+    } else {
+      setPhoneInput('')
+      setShowPhoneModal(true)
+    }
+  }, [sendShoppingList])
 
   useEffect(() => {
     async function load() {
@@ -164,15 +218,23 @@ export default function RecipeDetail() {
       )}
 
       <div className="flex gap-4 mb-8">
-        <button
-          onClick={() => {
-            console.log('Send Shopping List', { recipeId: recipe.id, ingredients })
-            alert('Shopping list feature coming soon!')
-          }}
-          className="flex-1 bg-amber-gold text-neutral-900 font-semibold py-3 px-6 rounded-xl hover:bg-amber-light transition-colors cursor-pointer"
-        >
-          Send Shopping List
-        </button>
+        <div className="flex-1 flex flex-col items-center gap-1">
+          <button
+            onClick={handleShoppingListClick}
+            disabled={sending}
+            className="w-full bg-amber-gold text-neutral-900 font-semibold py-3 px-6 rounded-xl hover:bg-amber-light transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-wait"
+          >
+            {sending ? 'Sending...' : 'Send Shopping List'}
+          </button>
+          {localStorage.getItem(PHONE_KEY) && (
+            <button
+              onClick={() => { setPhoneInput(localStorage.getItem(PHONE_KEY) || ''); setShowPhoneModal(true) }}
+              className="text-xs text-neutral-500 hover:text-amber-gold transition-colors"
+            >
+              change number
+            </button>
+          )}
+        </div>
         <button
           onClick={() => navigate(`/cook/${recipe.id}`)}
           className="flex-1 bg-dark-card border-2 border-amber-gold text-amber-gold font-semibold py-3 px-6 rounded-xl hover:bg-amber-gold/10 transition-colors cursor-pointer"
@@ -180,6 +242,54 @@ export default function RecipeDetail() {
           Start Cooking
         </button>
       </div>
+
+      {/* Phone Number Modal */}
+      {showPhoneModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => !sending && setShowPhoneModal(false)}>
+          <div className="bg-neutral-900 border border-dark-border rounded-2xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-2">Send to WhatsApp</h3>
+            <p className="text-neutral-400 text-sm mb-4">
+              Enter your WhatsApp number and we&apos;ll send the shopping list for <span className="text-amber-gold">{recipe.title}</span>.
+            </p>
+            <input
+              type="tel"
+              value={phoneInput}
+              onChange={(e) => setPhoneInput(e.target.value)}
+              placeholder="+1 (555) 123-4567"
+              autoFocus
+              className="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-4 py-3 mb-4 focus:outline-none focus:border-amber-gold placeholder-neutral-500"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && phoneInput.trim()) sendShoppingList(phoneInput.trim())
+              }}
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowPhoneModal(false)}
+                disabled={sending}
+                className="flex-1 bg-neutral-800 text-neutral-300 font-semibold py-2.5 rounded-xl hover:bg-neutral-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => sendShoppingList(phoneInput.trim())}
+                disabled={!phoneInput.trim() || sending}
+                className="flex-1 bg-amber-gold text-neutral-900 font-semibold py-2.5 rounded-xl hover:bg-amber-light transition-colors disabled:opacity-50"
+              >
+                {sending ? 'Sending...' : 'Send'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-xl font-semibold text-sm shadow-lg transition-all ${
+          toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
+        }`}>
+          {toast.message}
+        </div>
+      )}
     </div>
   )
 }
