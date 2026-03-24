@@ -230,8 +230,10 @@ class AudioQueue {
 
   stop() {
     this.cancelled = true
+    // Drain queue — revoke all pending blob URLs
+    for (const url of this.queue) URL.revokeObjectURL(url)
     this.queue = []
-    if (this.currentAudio) { this.currentAudio.pause(); this.currentAudio.src = ''; this.currentAudio = null }
+    if (this.currentAudio) { this.currentAudio.pause(); this.currentAudio.currentTime = 0; this.currentAudio.src = ''; this.currentAudio = null }
     if (synthSupported) window.speechSynthesis.cancel()
     this.playing = false
   }
@@ -269,9 +271,9 @@ class VoiceActivityDetector {
     this.stream = null
     this.rafId = null
     this.active = false
-    this.threshold = 25 // Volume threshold (0-128 range)
+    this.threshold = 18 // Volume threshold (0-128 range), tuned for speech without ambient false positives
     this.consecutiveFrames = 0
-    this.requiredFrames = 3 // Need 3 consecutive frames above threshold
+    this.requiredFrames = 2 // Need 2 consecutive frames above threshold (~32ms detection)
   }
 
   async start() {
@@ -350,6 +352,7 @@ export default function CookingSession() {
   const [micPermission, setMicPermission] = useState('prompt')
   const [playbackRate, setPlaybackRate] = useState(1.0)
   const [convState, setConvState] = useState('idle')
+  const [interrupted, setInterrupted] = useState(false)
   const [viewportHeight, setViewportHeight] = useState(null)
 
   const messagesEndRef = useRef(null)
@@ -404,9 +407,12 @@ export default function CookingSession() {
     stopAllAudio()
     vadRef.current?.stop()
     setConvState('idle'); convStateRef.current = 'idle'
-    // Start speech recognition to capture what they're saying
+    // Visual flash — "heard you" feedback
+    setInterrupted(true)
+    setTimeout(() => setInterrupted(false), 600)
+    // Start speech recognition immediately to capture what they're saying
     if (voiceModeRef.current && !micMutedRef.current) {
-      setTimeout(() => startMic(), 100)
+      setTimeout(() => startMic(), 50)
     }
   }
 
@@ -453,7 +459,7 @@ export default function CookingSession() {
           if (voiceModeRef.current && !micMutedRef.current && convStateRef.current !== 'chef_speaking' && convStateRef.current !== 'thinking') {
             try { recognition.start(); setConvState('listening'); convStateRef.current = 'listening' } catch { /* ok */ }
           } else { if (convStateRef.current === 'listening') { setConvState('idle'); convStateRef.current = 'idle' } }
-        }, 400)
+        }, 150)
       } else { if (convStateRef.current === 'listening') { setConvState('idle'); convStateRef.current = 'idle' } }
     }
 
@@ -529,7 +535,7 @@ export default function CookingSession() {
     aq.onFinished = () => {
       vadRef.current?.stop()
       setConvState('idle'); convStateRef.current = 'idle'
-      if (voiceModeRef.current && !micMutedRef.current) setTimeout(() => startMic(), 400)
+      if (voiceModeRef.current && !micMutedRef.current) setTimeout(() => startMic(), 150)
     }
 
     stopMic()
@@ -730,7 +736,13 @@ export default function CookingSession() {
         </div>
       </div>
 
-      {stateLabel && (
+      {interrupted && (
+        <div className="bg-amber-gold/20 border-b border-amber-gold/40 px-4 py-1.5 text-center shrink-0 animate-pulse">
+          <span className="text-xs font-semibold text-amber-gold">Heard you — go ahead</span>
+        </div>
+      )}
+
+      {!interrupted && stateLabel && (
         <div className="bg-dark-card/80 border-b border-dark-border px-4 py-1.5 text-center shrink-0">
           <span className={`text-xs font-medium ${stateColor} flex items-center justify-center gap-2`}>
             {convState === 'chef_speaking' && <SpeakerIcon className="w-3.5 h-3.5" on={true} />}
@@ -738,7 +750,7 @@ export default function CookingSession() {
             {convState === 'thinking' && <span className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />}
             {stateLabel}
             {convState === 'chef_speaking' && (
-              <button onClick={() => { stopAllAudio(); vadRef.current?.stop(); setConvState('idle'); convStateRef.current = 'idle'; if (voiceModeRef.current && !micMutedRef.current) setTimeout(() => startMic(), 300) }}
+              <button onClick={() => { stopAllAudio(); vadRef.current?.stop(); setConvState('idle'); convStateRef.current = 'idle'; if (voiceModeRef.current && !micMutedRef.current) setTimeout(() => startMic(), 150) }}
                 className="text-neutral-500 hover:text-white ml-1 cursor-pointer text-sm">skip</button>
             )}
           </span>
