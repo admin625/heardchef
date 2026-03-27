@@ -17,6 +17,7 @@ export default function RecipeDetail() {
   const [sending, setSending] = useState(false)
   const [toast, setToast] = useState(null)
   const [selectedServings, setSelectedServings] = useState(null)
+  const [cookMode, setCookMode] = useState('voice')
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type })
@@ -42,7 +43,6 @@ export default function RecipeDetail() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Send failed')
 
-      // Persist phone and userId
       localStorage.setItem(PHONE_KEY, phone)
       if (data.userId) localStorage.setItem(USER_ID_KEY, data.userId)
 
@@ -134,7 +134,7 @@ export default function RecipeDetail() {
       </div>
 
       {/* Serving Size Selector */}
-      <section className="mb-8 bg-dark-card border border-dark-border rounded-xl p-5">
+      <section className="mb-6 bg-dark-card border border-dark-border rounded-xl p-5">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-white font-semibold text-lg">Servings</h3>
@@ -163,6 +163,30 @@ export default function RecipeDetail() {
             Ingredients will be scaled {selectedServings > recipe.servings ? 'up' : 'down'} during your cooking session.
           </p>
         )}
+      </section>
+
+      {/* Cooking Mode Selector */}
+      <section className="mb-8 bg-dark-card border border-dark-border rounded-xl p-5">
+        <h3 className="text-white font-semibold text-lg mb-3">Cooking Mode</h3>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setCookMode('voice')}
+            className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all cursor-pointer ${cookMode === 'voice' ? 'bg-amber-gold/20 border border-amber-gold/50 text-amber-gold' : 'bg-neutral-800 border border-dark-border text-neutral-400 hover:border-neutral-600'}`}
+          >
+            Voice Mode
+          </button>
+          <button
+            onClick={() => setCookMode('read')}
+            className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all cursor-pointer ${cookMode === 'read' ? 'bg-amber-gold/20 border border-amber-gold/50 text-amber-gold' : 'bg-neutral-800 border border-dark-border text-neutral-400 hover:border-neutral-600'}`}
+          >
+            Read Mode
+          </button>
+        </div>
+        <p className="text-neutral-500 text-xs mt-2">
+          {cookMode === 'voice'
+            ? 'AI chef guides you step-by-step with voice and conversation.'
+            : 'Clean step-by-step view — no voice, no AI. Tap to navigate.'}
+        </p>
       </section>
 
       <section className="mb-10">
@@ -269,7 +293,7 @@ export default function RecipeDetail() {
           )}
         </div>
         <button
-          onClick={() => navigate(`/cook/${recipe.id}?servings=${selectedServings}`)}
+          onClick={() => navigate(`/cook/${recipe.id}?servings=${selectedServings}&mode=${cookMode}`)}
           className="flex-1 bg-dark-card border-2 border-amber-gold text-amber-gold font-semibold py-3 px-6 rounded-xl hover:bg-amber-gold/10 transition-colors cursor-pointer"
         >
           Start Cooking
