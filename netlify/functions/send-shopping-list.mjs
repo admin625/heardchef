@@ -32,11 +32,39 @@ export default async (req) => {
   }
 
   try {
-    // Forward to n8n webhook
+    // Look up chef name from the recipe's chef_id
+    let chefName = 'HeardChef'
+    if (SUPABASE_KEY && recipeId) {
+      const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
+      const { data: recipeRow } = await supabase
+        .from('recipes')
+        .select('chef_id')
+        .eq('id', recipeId)
+        .single()
+
+      if (recipeRow?.chef_id) {
+        const { data: chefRow } = await supabase
+          .from('chefs')
+          .select('name')
+          .eq('id', recipeRow.chef_id)
+          .single()
+
+        if (chefRow?.name) chefName = chefRow.name
+      }
+    }
+
+    // Forward to n8n webhook — map camelCase to snake_case fields
     const n8nResponse = await fetch(N8N_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phoneNumber, recipeName, ingredients, portions, userId, recipeId }),
+      body: JSON.stringify({
+        phone_number: phoneNumber,
+        recipe_title: recipeName,
+        chef_name: chefName,
+        ingredients,
+        portions,
+        recipe_id: recipeId,
+      }),
     })
 
     if (!n8nResponse.ok) {
