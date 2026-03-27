@@ -83,10 +83,7 @@ function buildSystemPrompt(chef, recipe, portions, currentStepNum, substitutions
     if (currentStepObj.chef_tip) stepDesc += `\nChef tip: ${currentStepObj.chef_tip}`
 
     const stepIngredients = (recipe.ingredients || [])
-      .filter(i => {
-        const instrLower = (currentStepObj.instruction || '').toLowerCase()
-        return instrLower.includes((i.item || '').toLowerCase())
-      })
+      .filter(i => ingredientMatchesStep(i.item, currentStepObj.instruction || ''))
       .map(i => `${scaleAmount(i.amount, multiplier)} ${i.unit} ${i.item}`)
       .join(', ')
     if (stepIngredients) stepDesc += `\nKey ingredients active at this step: ${stepIngredients}`
@@ -515,10 +512,7 @@ export default function CookingSession() {
   const multiplier = portions / baseServings
 
   // Read Mode: get ingredients relevant to the active step
-  const readStepIngredients = activeStep ? (recipe.ingredients || []).filter(i => {
-    const instrLower = (activeStep.instruction || '').toLowerCase()
-    return instrLower.includes((i.item || '').toLowerCase())
-  }) : []
+  const readStepIngredients = activeStep ? (recipe.ingredients || []).filter(i => ingredientMatchesStep(i.item, activeStep.instruction || '')) : []
 
   if (sessionEnded) return (
     <div className="pt-8 text-center">
@@ -612,11 +606,12 @@ export default function CookingSession() {
         <div className="flex-1 overflow-y-auto px-4 py-6">
           {activeStep && (
             <div className="space-y-5">
+              {multiplier !== 1 && <div className="text-xs text-amber-gold/70 font-medium mb-2">Scaled for {portions} servings (base: {baseServings})</div>}
               <p className="text-[18px] leading-relaxed text-neutral-200">{activeStep.instruction}</p>
 
               {readStepIngredients.length > 0 && (
                 <div className="bg-neutral-800/50 border border-dark-border rounded-xl p-4">
-                  <h4 className="text-amber-gold font-semibold text-sm mb-2">Ingredients for this step</h4>
+                  <h4 className="text-amber-gold font-semibold text-sm mb-2">Ingredients for this step{multiplier !== 1 && <span className="text-neutral-500 font-normal ml-2">(scaled for {portions} servings)</span>}</h4>
                   <ul className="space-y-1.5">
                     {readStepIngredients.map((ing, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm text-neutral-300">
