@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 // ─── CHEF IDENTITY BLOCKS ───
@@ -34,29 +34,68 @@ const DEFLECTION_POOLS = {
   ]
 }
 
+// ─── SCALE INGREDIENT AMOUNT ───
+function scaleAmount(amount, multiplier) {
+  if (!amount || multiplier === 1) return amount
+  const str = String(amount).trim()
+  // Handle "to taste" or non-numeric amounts
+  if (/[a-zA-Z]/.test(str)) return str
+  // Handle fractions like "1/2", "1/4"
+  const fracMatch = str.match(/^(\d+)\/(\d+)$/)
+  if (fracMatch) {
+    const val = (parseInt(fracMatch[1]) / parseInt(fracMatch[2])) * multiplier
+    return formatScaledNumber(val)
+  }
+  // Handle mixed numbers like "1.5"
+  const num = parseFloat(str)
+  if (isNaN(num)) return str
+  return formatScaledNumber(num * multiplier)
+}
+
+function formatScaledNumber(n) {
+  if (n === Math.floor(n)) return String(n)
+  // Common fractions for readability
+  const fracs = [[0.25, '1/4'], [0.33, '1/3'], [0.5, '1/2'], [0.67, '2/3'], [0.75, '3/4']]
+  const whole = Math.floor(n)
+  const remainder = n - whole
+  for (const [val, label] of fracs) {
+    if (Math.abs(remainder - val) < 0.05) {
+      return whole > 0 ? `${whole} ${label}` : label
+    }
+  }
+  return n.toFixed(1).replace(/\.0$/, '')
+}
+
 function buildSystemPrompt(chef, recipe, portions, currentStepNum, substitutions, usedDeflections) {
   const steps = recipe.steps || []
   const currentStepObj = steps.find(s => s.step_number === currentStepNum)
   const nextStepObj = steps.find(s => s.step_number === currentStepNum + 1)
+
+  // Scaling multiplier
+  const baseServings = recipe.servings || 4
+  const multiplier = portions / baseServings
 
   // [CHEF IDENTITY]
   const identity = CHEF_IDENTITIES[chef.name] || `You are ${chef.name}.\n\nPERSONALITY: ${chef.personality_description}\nVOICE STYLE: ${chef.voice_style}`
 
   // [RECIPE CONTEXT] — current step only
   let recipeContext = `Recipe: ${recipe.title}\nDifficulty: ${recipe.difficulty}\nTotal time: ${recipe.total_time_minutes} min`
+  if (multiplier !== 1) {
+    recipeContext += `\nScaled from ${baseServings} to ${portions} servings (${multiplier.toFixed(2)}x multiplier)`
+  }
   if (currentStepObj) {
     let stepDesc = `Current step (${currentStepObj.step_number} of ${steps.length}): ${currentStepObj.instruction}`
     if (currentStepObj.duration_minutes > 0) stepDesc += ` [${currentStepObj.duration_minutes} min${currentStepObj.timer_needed ? ', timer recommended' : ''}]`
     if (currentStepObj.technique_notes) stepDesc += `\nTechnique: ${currentStepObj.technique_notes}`
     if (currentStepObj.chef_tip) stepDesc += `\nChef tip: ${currentStepObj.chef_tip}`
 
-    // Key ingredients active at this step
+    // Key ingredients active at this step — scaled amounts
     const stepIngredients = (recipe.ingredients || [])
       .filter(i => {
         const instrLower = (currentStepObj.instruction || '').toLowerCase()
         return instrLower.includes((i.item || '').toLowerCase())
       })
-      .map(i => `${i.amount} ${i.unit} ${i.item}`)
+      .map(i => `${scaleAmount(i.amount, multiplier)} ${i.unit} ${i.item}`)
       .join(', ')
     if (stepIngredients) stepDesc += `\nKey ingredients active at this step: ${stepIngredients}`
 
@@ -66,11 +105,19 @@ function buildSystemPrompt(chef, recipe, portions, currentStepNum, substitutions
     recipeContext += `\nUpcoming step preview (do not reveal, use only to anticipate anxiety): ${nextStepObj.instruction}`
   }
 
+  // Full scaled ingredient list for reference
+  const allIngredients = (recipe.ingredients || [])
+    .map(i => `${scaleAmount(i.amount, multiplier)} ${i.unit} ${i.item}`)
+    .join(', ')
+  if (allIngredients) {
+    recipeContext += `\nFull ingredient list (scaled for ${portions} servings): ${allIngredients}`
+  }
+
   // [USER CONTEXT]
   const subsText = substitutions && substitutions.length > 0
     ? substitutions.join(', ')
     : 'None noted'
-  const userContext = `Portions: ${portions} servings\nNoted substitutions: ${subsText}`
+  const userContext = `Portions: ${portions} servings${multiplier !== 1 ? ` (scaled from ${baseServings})` : ''}\nNoted substitutions: ${subsText}`
 
   // [CONVERSATION RULES]
   const conversationRules = `SKILL LEVEL DETECTION — do not ask, detect and adapt:
@@ -103,6 +150,7 @@ STEP NAVIGATION:
 - When a step has a duration, proactively mention setting a timer.
 - If the cook asks to scale portions, recalculate proportionally.
 - When starting, greet the cook in character, confirm the recipe and portions, and ask if they're ready to begin with step 1.
+- IMPORTANT: Always reference the SCALED ingredient amounts when discussing quantities. The cook is making ${portions} servings, not the base ${baseServings}.
 
 CULINARY KNOWLEDGE:
 - When the user asks about technique, science, ingredients, substitutions, or troubleshooting, you may receive CULINARY KNOWLEDGE CONTEXT below. Use it to answer with depth and authority, but in your chef's voice. Do not mention looking anything up.`
@@ -332,6 +380,7 @@ function SpeakerIcon({ className, on }) {
 
 export default function CookingSession() {
   const { recipeId } = useParams()
+  const [searchParams] = useSearchParams()
   const [recipe, setRecipe] = useState(null)
   const [chef, setChef] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -422,11 +471,6 @@ export default function CookingSession() {
     return () => { vadRef.current?.stop() }
   }, [])
 
-  // ─── SENTENCE-LEVEL STREAMING TTS ───
-  // Called when a new assistant message arrives. Instead of waiting for full text,
-  // this is now triggered sentence-by-sentence during streaming (see sendMessage/initSession).
-  // The old lastMsgCountRef effect is replaced by inline streaming TTS.
-
   // Speak a single sentence via audio queue
   async function speakSentence(sentence, voiceId) {
     if (!voiceId) { return } // fallback handled at full-text level
@@ -515,16 +559,23 @@ export default function CookingSession() {
     return () => window.removeEventListener('beforeunload', h)
   }, [sessionEnded, sessionId])
 
-  // Load recipe + chef
+  // Load recipe + chef, read servings from URL search params
   useEffect(() => {
     async function load() {
       const { data: rd } = await supabase.from('recipes').select('*').eq('id', recipeId).single()
-      if (rd) { const { data: cd } = await supabase.from('chefs').select('*').eq('id', rd.chef_id).single(); setChef(cd); chefRef.current = cd; setPortions(rd.servings); setRecipe(rd) }
+      if (rd) {
+        const { data: cd } = await supabase.from('chefs').select('*').eq('id', rd.chef_id).single()
+        setChef(cd); chefRef.current = cd; setRecipe(rd)
+        // Use URL ?servings param if present, otherwise fall back to recipe default
+        const urlServings = parseInt(searchParams.get('servings'))
+        const initialPortions = urlServings > 0 && urlServings <= 12 ? urlServings : rd.servings
+        setPortions(initialPortions)
+      }
       else { const c = getCachedSession(); if (c && c.recipeId === recipeId) { setRecipe(c.recipe); setChef(c.chef); chefRef.current = c.chef; setMessages(c.messages || []); setCurrentStep(c.currentStep || 0); setPortions(c.portions); setSessionId(c.sessionId); setSubstitutions(c.substitutions || []); setUsedDeflections(c.usedDeflections || []) } }
       setLoading(false)
     }
     load()
-  }, [recipeId])
+  }, [recipeId, searchParams])
 
   // ─── STREAMING TTS: Process a stream with sentence-level TTS ───
   async function streamWithTTS(fetchRes, onFullText) {
@@ -587,11 +638,11 @@ export default function CookingSession() {
 
   // Create session + initial greeting
   useEffect(() => {
-    if (!recipe || !chef || sessionId) return
+    if (!recipe || !chef || sessionId || !portions) return
     async function initSession() {
-      const { data: session } = await supabase.from('cooking_sessions').insert({ recipe_id: recipe.id, portions: recipe.servings, conversation_history: [], started_at: new Date().toISOString() }).select('id').single()
+      const { data: session } = await supabase.from('cooking_sessions').insert({ recipe_id: recipe.id, portions, conversation_history: [], started_at: new Date().toISOString() }).select('id').single()
       if (session) setSessionId(session.id)
-      const system = buildSystemPrompt(chef, recipe, recipe.servings, 1, [], [])
+      const system = buildSystemPrompt(chef, recipe, portions, 1, [], [])
       setSending(true); setStreamingText('')
       try {
         const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ system, messages: [{ role: 'user', content: 'I want to cook this recipe. Let\'s get started!' }], stream: true }) })
@@ -603,7 +654,7 @@ export default function CookingSession() {
       setSending(false)
     }
     initSession()
-  }, [recipe, chef, sessionId])
+  }, [recipe, chef, sessionId, portions])
 
   async function sendMessage(text, isRetry = false) {
     if (sending || sessionEnded) return
@@ -676,7 +727,7 @@ export default function CookingSession() {
   async function endSession() {
     stopAllAudio(); stopMic(); vadRef.current?.stop()
     setConvState('idle'); convStateRef.current = 'idle'
-    if (sessionId) await supabase.from('cooking_sessions').update({ completed_at: new Date().toISOString(), conversation_history: messages }).eq('id', sessionId)
+    if (sessionId) await supabase.from('cooking_sessions').update({ completed_at: new Date().toISOString(), conversation_history: messages, portions }).eq('id', sessionId)
     clearCachedSession()
     if (wakeLockRef.current) { wakeLockRef.current.release(); wakeLockRef.current = null }
     setSessionEnded(true)
@@ -704,7 +755,7 @@ export default function CookingSession() {
 
   if (sessionEnded) return (
     <div className="pt-8 text-center">
-      <div className="text-5xl mb-4">🎉</div>
+      <div className="text-5xl mb-4">&#x1F389;</div>
       <h1 className="text-2xl font-bold text-white mb-2">Great cooking!</h1>
       <p className="text-neutral-400 mb-6">Your session has been saved.</p>
       <Link to={`/recipe/${recipe.id}`} className="inline-block bg-amber-gold text-neutral-900 font-semibold py-3 px-8 rounded-xl hover:bg-amber-light transition-colors">Back to Recipe</Link>
@@ -728,6 +779,10 @@ export default function CookingSession() {
             <MicIcon className="w-3.5 h-3.5" /><span>{micMuted ? 'Muted' : 'Mic On'}</span>
           </button>
         )}
+        {/* Serving count badge */}
+        <span className="flex items-center gap-1 text-xs font-medium text-neutral-400 bg-neutral-800 border border-dark-border px-2.5 py-1 rounded-full">
+          <span className="text-amber-gold font-semibold">{portions}</span> servings
+        </span>
         <div className="flex items-center gap-0.5">
           {speedOptions.map(s => (
             <button key={s} onClick={() => { setPlaybackRate(s); audioQueueRef.current.setRate(s) }}
@@ -761,7 +816,7 @@ export default function CookingSession() {
         <div className="bg-dark-card border-b border-dark-border px-4 py-3 shrink-0">
           <div className="flex items-center justify-between mb-1">
             <span className="text-amber-gold font-semibold text-sm">Step {activeStep.step_number} of {steps.length}</span>
-            {activeStep.duration_minutes > 0 && <span className="text-xs bg-neutral-800 text-neutral-400 px-2 py-0.5 rounded">{activeStep.timer_needed ? '⏱️' : '⏰'} {activeStep.duration_minutes} min</span>}
+            {activeStep.duration_minutes > 0 && <span className="text-xs bg-neutral-800 text-neutral-400 px-2 py-0.5 rounded">{activeStep.timer_needed ? '\u23F1\uFE0F' : '\u23F0'} {activeStep.duration_minutes} min</span>}
           </div>
           <p className="text-sm text-neutral-300 leading-relaxed line-clamp-2">{activeStep.instruction}</p>
           <div className="mt-2 h-1 bg-neutral-800 rounded-full overflow-hidden"><div className="h-full bg-amber-gold rounded-full transition-all duration-500" style={{ width: `${(currentStep / steps.length) * 100}%` }} /></div>
