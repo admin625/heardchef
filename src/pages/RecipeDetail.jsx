@@ -16,6 +16,7 @@ export default function RecipeDetail() {
   const [phoneInput, setPhoneInput] = useState('')
   const [sending, setSending] = useState(false)
   const [toast, setToast] = useState(null)
+  const [selectedServings, setSelectedServings] = useState(null)
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type })
@@ -33,7 +34,7 @@ export default function RecipeDetail() {
           phoneNumber: phone,
           recipeName: recipe.title,
           ingredients: recipe.ingredients || [],
-          portions: recipe.servings,
+          portions: selectedServings || recipe.servings,
           userId: localStorage.getItem(USER_ID_KEY) || null,
           recipeId: recipe.id,
         }),
@@ -52,7 +53,7 @@ export default function RecipeDetail() {
     } finally {
       setSending(false)
     }
-  }, [recipe, showToast])
+  }, [recipe, selectedServings, showToast])
 
   const handleShoppingListClick = useCallback(() => {
     const savedPhone = localStorage.getItem(PHONE_KEY)
@@ -79,6 +80,7 @@ export default function RecipeDetail() {
           .eq('id', recipeData.chef_id)
           .single()
         setChef(chefData)
+        setSelectedServings(recipeData.servings)
       }
 
       setRecipe(recipeData)
@@ -120,7 +122,6 @@ export default function RecipeDetail() {
           <span className="text-neutral-500 text-sm">Prep: {recipe.prep_time_minutes}m</span>
           <span className="text-neutral-500 text-sm">Cook: {recipe.cook_time_minutes}m</span>
           <span className="text-amber-gold text-sm font-semibold">Total: {recipe.total_time_minutes}m</span>
-          <span className="text-neutral-500 text-sm">Serves {recipe.servings}</span>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -131,6 +132,38 @@ export default function RecipeDetail() {
           ))}
         </div>
       </div>
+
+      {/* Serving Size Selector */}
+      <section className="mb-8 bg-dark-card border border-dark-border rounded-xl p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-white font-semibold text-lg">Servings</h3>
+            <p className="text-neutral-500 text-sm">Recipe default: {recipe.servings}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSelectedServings(s => Math.max(1, s - 1))}
+              disabled={selectedServings <= 1}
+              className="w-10 h-10 rounded-full bg-neutral-800 border border-dark-border text-white text-xl font-bold flex items-center justify-center hover:border-amber-gold/50 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              &minus;
+            </button>
+            <span className="text-2xl font-bold text-amber-gold w-8 text-center">{selectedServings}</span>
+            <button
+              onClick={() => setSelectedServings(s => Math.min(12, s + 1))}
+              disabled={selectedServings >= 12}
+              className="w-10 h-10 rounded-full bg-neutral-800 border border-dark-border text-white text-xl font-bold flex items-center justify-center hover:border-amber-gold/50 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              +
+            </button>
+          </div>
+        </div>
+        {selectedServings !== recipe.servings && (
+          <p className="text-amber-gold text-xs mt-2">
+            Ingredients will be scaled {selectedServings > recipe.servings ? 'up' : 'down'} during your cooking session.
+          </p>
+        )}
+      </section>
 
       <section className="mb-10">
         <h2 className="text-2xl font-bold text-amber-gold mb-4 border-b border-dark-border pb-2">
@@ -236,7 +269,7 @@ export default function RecipeDetail() {
           )}
         </div>
         <button
-          onClick={() => navigate(`/cook/${recipe.id}`)}
+          onClick={() => navigate(`/cook/${recipe.id}?servings=${selectedServings}`)}
           className="flex-1 bg-dark-card border-2 border-amber-gold text-amber-gold font-semibold py-3 px-6 rounded-xl hover:bg-amber-gold/10 transition-colors cursor-pointer"
         >
           Start Cooking
