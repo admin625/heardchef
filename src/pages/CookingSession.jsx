@@ -38,15 +38,12 @@ const DEFLECTION_POOLS = {
 function scaleAmount(amount, multiplier) {
   if (!amount || multiplier === 1) return amount
   const str = String(amount).trim()
-  // Handle "to taste" or non-numeric amounts
   if (/[a-zA-Z]/.test(str)) return str
-  // Handle fractions like "1/2", "1/4"
   const fracMatch = str.match(/^(\d+)\/(\d+)$/)
   if (fracMatch) {
     const val = (parseInt(fracMatch[1]) / parseInt(fracMatch[2])) * multiplier
     return formatScaledNumber(val)
   }
-  // Handle mixed numbers like "1.5"
   const num = parseFloat(str)
   if (isNaN(num)) return str
   return formatScaledNumber(num * multiplier)
@@ -54,7 +51,6 @@ function scaleAmount(amount, multiplier) {
 
 function formatScaledNumber(n) {
   if (n === Math.floor(n)) return String(n)
-  // Common fractions for readability
   const fracs = [[0.25, '1/4'], [0.33, '1/3'], [0.5, '1/2'], [0.67, '2/3'], [0.75, '3/4']]
   const whole = Math.floor(n)
   const remainder = n - whole
@@ -71,14 +67,11 @@ function buildSystemPrompt(chef, recipe, portions, currentStepNum, substitutions
   const currentStepObj = steps.find(s => s.step_number === currentStepNum)
   const nextStepObj = steps.find(s => s.step_number === currentStepNum + 1)
 
-  // Scaling multiplier
   const baseServings = recipe.servings || 4
   const multiplier = portions / baseServings
 
-  // [CHEF IDENTITY]
   const identity = CHEF_IDENTITIES[chef.name] || `You are ${chef.name}.\n\nPERSONALITY: ${chef.personality_description}\nVOICE STYLE: ${chef.voice_style}`
 
-  // [RECIPE CONTEXT] — current step only
   let recipeContext = `Recipe: ${recipe.title}\nDifficulty: ${recipe.difficulty}\nTotal time: ${recipe.total_time_minutes} min`
   if (multiplier !== 1) {
     recipeContext += `\nScaled from ${baseServings} to ${portions} servings (${multiplier.toFixed(2)}x multiplier)`
@@ -89,7 +82,6 @@ function buildSystemPrompt(chef, recipe, portions, currentStepNum, substitutions
     if (currentStepObj.technique_notes) stepDesc += `\nTechnique: ${currentStepObj.technique_notes}`
     if (currentStepObj.chef_tip) stepDesc += `\nChef tip: ${currentStepObj.chef_tip}`
 
-    // Key ingredients active at this step — scaled amounts
     const stepIngredients = (recipe.ingredients || [])
       .filter(i => {
         const instrLower = (currentStepObj.instruction || '').toLowerCase()
@@ -105,7 +97,6 @@ function buildSystemPrompt(chef, recipe, portions, currentStepNum, substitutions
     recipeContext += `\nUpcoming step preview (do not reveal, use only to anticipate anxiety): ${nextStepObj.instruction}`
   }
 
-  // Full scaled ingredient list for reference
   const allIngredients = (recipe.ingredients || [])
     .map(i => `${scaleAmount(i.amount, multiplier)} ${i.unit} ${i.item}`)
     .join(', ')
@@ -113,13 +104,11 @@ function buildSystemPrompt(chef, recipe, portions, currentStepNum, substitutions
     recipeContext += `\nFull ingredient list (scaled for ${portions} servings): ${allIngredients}`
   }
 
-  // [USER CONTEXT]
   const subsText = substitutions && substitutions.length > 0
     ? substitutions.join(', ')
     : 'None noted'
   const userContext = `Portions: ${portions} servings${multiplier !== 1 ? ` (scaled from ${baseServings})` : ''}\nNoted substitutions: ${subsText}`
 
-  // [CONVERSATION RULES]
   const conversationRules = `SKILL LEVEL DETECTION — do not ask, detect and adapt:
 - Vague questions ("how do I know when it's done?") → beginner. Use sensory cues: color, sound, smell, texture. Be reassuring first, informative second.
 - Precise terminology ("what's the fond doing here?", "should I emulsify off heat?") → advanced. Skip basics, be a peer not a teacher.
@@ -155,7 +144,6 @@ STEP NAVIGATION:
 CULINARY KNOWLEDGE:
 - When the user asks about technique, science, ingredients, substitutions, or troubleshooting, you may receive CULINARY KNOWLEDGE CONTEXT below. Use it to answer with depth and authority, but in your chef's voice. Do not mention looking anything up.`
 
-  // [OFF-TOPIC HANDLING] — build available deflections excluding used ones
   const pool = DEFLECTION_POOLS[chef.name] || []
   const availableDeflections = pool
     .filter((_, i) => !(usedDeflections || []).includes(i))
@@ -167,7 +155,6 @@ CULINARY KNOWLEDGE:
 Deflection options:
 ${deflectionList}`
 
-  // [HARD LIMITS]
   const hardLimits = `HARD LIMITS:
 - Cooking and food topics only — technique, ingredients, timing, substitutions, flavor, equipment
 - No medical or dietary advice beyond obvious common sense
@@ -278,7 +265,6 @@ class AudioQueue {
 
   stop() {
     this.cancelled = true
-    // Drain queue — revoke all pending blob URLs
     for (const url of this.queue) URL.revokeObjectURL(url)
     this.queue = []
     if (this.currentAudio) { this.currentAudio.pause(); this.currentAudio.currentTime = 0; this.currentAudio.src = ''; this.currentAudio = null }
@@ -319,9 +305,9 @@ class VoiceActivityDetector {
     this.stream = null
     this.rafId = null
     this.active = false
-    this.threshold = 18 // Volume threshold (0-128 range), tuned for speech without ambient false positives
+    this.threshold = 18
     this.consecutiveFrames = 0
-    this.requiredFrames = 2 // Need 2 consecutive frames above threshold (~32ms detection)
+    this.requiredFrames = 2
   }
 
   async start() {
@@ -377,6 +363,12 @@ function SpeakerIcon({ className, on }) {
     ? <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /></svg>
     : <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" /></svg>
 }
+function PauseIcon({ className }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="10" y1="4" x2="10" y2="20" /><line x1="14" y1="4" x2="14" y2="20" /></svg>
+}
+function PlayIcon({ className }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+}
 
 export default function CookingSession() {
   const { recipeId } = useParams()
@@ -403,6 +395,7 @@ export default function CookingSession() {
   const [convState, setConvState] = useState('idle')
   const [interrupted, setInterrupted] = useState(false)
   const [viewportHeight, setViewportHeight] = useState(null)
+  const [paused, setPaused] = useState(false)
 
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
@@ -416,10 +409,12 @@ export default function CookingSession() {
   const audioQueueRef = useRef(new AudioQueue())
   const vadRef = useRef(null)
   const chefRef = useRef(null)
+  const pausedRef = useRef(false)
 
   voiceModeRef.current = voiceMode
   micMutedRef.current = micMuted
   convStateRef.current = convState
+  pausedRef.current = paused
 
   const scrollToBottom = useCallback(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [])
   useEffect(() => { scrollToBottom() }, [messages, streamingText, scrollToBottom])
@@ -431,8 +426,9 @@ export default function CookingSession() {
     return () => { window.visualViewport.removeEventListener('resize', h); window.visualViewport.removeEventListener('scroll', h) }
   }, [scrollToBottom])
 
-  // ─── MIC CONTROL ───
+  // ─── MIC CONTROL (pause-aware) ───
   function startMic() {
+    if (pausedRef.current) return
     if (!speechSupported || !recognitionRef.current || micMutedRef.current || !voiceModeRef.current) return
     if (convStateRef.current === 'chef_speaking') return
     try { recognitionRef.current.start(); setConvState('listening'); convStateRef.current = 'listening' } catch { /* ok */ }
@@ -449,17 +445,15 @@ export default function CookingSession() {
     if (synthSupported) window.speechSynthesis.cancel()
   }
 
-  // ─── VAD: Instant interruption ───
+  // ─── VAD: Instant interruption (pause-aware) ───
   function handleVoiceInterrupt() {
+    if (pausedRef.current) return
     if (convStateRef.current !== 'chef_speaking') return
-    // Instant stop — user started talking
     stopAllAudio()
     vadRef.current?.stop()
     setConvState('idle'); convStateRef.current = 'idle'
-    // Visual flash — "heard you" feedback
     setInterrupted(true)
     setTimeout(() => setInterrupted(false), 600)
-    // Start speech recognition immediately to capture what they're saying
     if (voiceModeRef.current && !micMutedRef.current) {
       setTimeout(() => startMic(), 50)
     }
@@ -471,18 +465,41 @@ export default function CookingSession() {
     return () => { vadRef.current?.stop() }
   }, [])
 
-  // Speak a single sentence via audio queue
+  // Speak a single sentence via audio queue (pause-aware)
   async function speakSentence(sentence, voiceId) {
-    if (!voiceId) { return } // fallback handled at full-text level
+    if (pausedRef.current) return
+    if (!voiceId) { return }
     const blob = await fetchTTSBlob(sentence, voiceId)
-    if (blob && !audioQueueRef.current.cancelled) {
+    if (blob && !audioQueueRef.current.cancelled && !pausedRef.current) {
       await audioQueueRef.current.enqueue(blob)
     }
   }
 
   useEffect(() => { return () => { stopAllAudio(); vadRef.current?.stop() } }, [])
 
-  // ─── SPEECH RECOGNITION ───
+  // ─── PAUSE / RESUME ───
+  function togglePause() {
+    if (paused) {
+      // Resume
+      setPaused(false)
+      pausedRef.current = false
+      setConvState('idle')
+      convStateRef.current = 'idle'
+      // Re-read current step by triggering a Repeat
+      setTimeout(() => sendMessageRef.current?.('__REPEAT__'), 100)
+    } else {
+      // Pause — kill everything
+      setPaused(true)
+      pausedRef.current = true
+      stopAllAudio()
+      stopMic()
+      vadRef.current?.stop()
+      setConvState('paused')
+      convStateRef.current = 'paused'
+    }
+  }
+
+  // ─── SPEECH RECOGNITION (pause-aware auto-restart) ───
   useEffect(() => {
     if (!speechSupported) return
     const recognition = new SpeechRecognition()
@@ -498,8 +515,10 @@ export default function CookingSession() {
     }
 
     recognition.onend = () => {
+      if (pausedRef.current) { if (convStateRef.current === 'listening') { setConvState('paused'); convStateRef.current = 'paused' }; return }
       if (voiceModeRef.current && !micMutedRef.current && convStateRef.current !== 'chef_speaking' && convStateRef.current !== 'thinking') {
         setTimeout(() => {
+          if (pausedRef.current) return
           if (voiceModeRef.current && !micMutedRef.current && convStateRef.current !== 'chef_speaking' && convStateRef.current !== 'thinking') {
             try { recognition.start(); setConvState('listening'); convStateRef.current = 'listening' } catch { /* ok */ }
           } else { if (convStateRef.current === 'listening') { setConvState('idle'); convStateRef.current = 'idle' } }
@@ -509,8 +528,10 @@ export default function CookingSession() {
 
     recognition.onerror = (event) => {
       if (event.error === 'not-allowed') { setMicPermission('denied'); return }
+      if (pausedRef.current) return
       if (voiceModeRef.current && !micMutedRef.current && event.error !== 'not-allowed' && convStateRef.current !== 'chef_speaking') {
         setTimeout(() => {
+          if (pausedRef.current) return
           if (voiceModeRef.current && !micMutedRef.current && convStateRef.current !== 'chef_speaking') {
             try { recognition.start(); setConvState('listening'); convStateRef.current = 'listening' } catch { /* ok */ }
           }
@@ -559,14 +580,13 @@ export default function CookingSession() {
     return () => window.removeEventListener('beforeunload', h)
   }, [sessionEnded, sessionId])
 
-  // Load recipe + chef, read servings from URL search params
+  // Load recipe + chef
   useEffect(() => {
     async function load() {
       const { data: rd } = await supabase.from('recipes').select('*').eq('id', recipeId).single()
       if (rd) {
         const { data: cd } = await supabase.from('chefs').select('*').eq('id', rd.chef_id).single()
         setChef(cd); chefRef.current = cd; setRecipe(rd)
-        // Use URL ?servings param if present, otherwise fall back to recipe default
         const urlServings = parseInt(searchParams.get('servings'))
         const initialPortions = urlServings > 0 && urlServings <= 12 ? urlServings : rd.servings
         setPortions(initialPortions)
@@ -577,23 +597,24 @@ export default function CookingSession() {
     load()
   }, [recipeId, searchParams])
 
-  // ─── STREAMING TTS: Process a stream with sentence-level TTS ───
+  // ─── STREAMING TTS (pause-aware) ───
   async function streamWithTTS(fetchRes, onFullText) {
     const aq = audioQueueRef.current
     aq.reset()
     aq.setRate(playbackRate)
-    aq.onStateChange = (s) => { setConvState(s); convStateRef.current = s }
+    aq.onStateChange = (s) => { if (!pausedRef.current) { setConvState(s); convStateRef.current = s } }
     aq.onFinished = () => {
       vadRef.current?.stop()
-      setConvState('idle'); convStateRef.current = 'idle'
-      if (voiceModeRef.current && !micMutedRef.current) setTimeout(() => startMic(), 150)
+      if (!pausedRef.current) {
+        setConvState('idle'); convStateRef.current = 'idle'
+        if (voiceModeRef.current && !micMutedRef.current) setTimeout(() => startMic(), 150)
+      }
     }
 
     stopMic()
-    setConvState('thinking'); convStateRef.current = 'thinking'
+    if (!pausedRef.current) { setConvState('thinking'); convStateRef.current = 'thinking' }
 
-    // Start VAD to detect interruptions while speaking
-    if (voiceModeRef.current) vadRef.current?.start()
+    if (voiceModeRef.current && !pausedRef.current) vadRef.current?.start()
 
     let fullText = ''
     let sentenceBuffer = ''
@@ -604,9 +625,8 @@ export default function CookingSession() {
       fullText += chunk
       setStreamingText(fullText)
 
-      if (voiceId && voiceModeRef.current) {
+      if (voiceId && voiceModeRef.current && !pausedRef.current) {
         sentenceBuffer += chunk
-        // Check for complete sentences
         const sentenceMatch = sentenceBuffer.match(/^(.*?[.!?])\s*(.*)$/s)
         if (sentenceMatch) {
           const completeSentence = sentenceMatch[1].trim()
@@ -618,18 +638,18 @@ export default function CookingSession() {
       }
     })
 
-    // Flush remaining buffer
-    if (voiceId && voiceModeRef.current && sentenceBuffer.trim().length > 2 && !aq.cancelled) {
+    if (voiceId && voiceModeRef.current && sentenceBuffer.trim().length > 2 && !aq.cancelled && !pausedRef.current) {
       speakSentence(sentenceBuffer.trim(), voiceId)
     }
 
-    // If no voice or TTS failed, use fallback for full text
     if (!voiceId || !voiceModeRef.current) {
-      if (voiceModeRef.current && fullText) {
+      if (voiceModeRef.current && fullText && !pausedRef.current) {
         setConvState('chef_speaking'); convStateRef.current = 'chef_speaking'
         await new Promise(resolve => fallbackSpeak(fullText, playbackRate, resolve))
-        setConvState('idle'); convStateRef.current = 'idle'
-        if (voiceModeRef.current && !micMutedRef.current) setTimeout(() => startMic(), 400)
+        if (!pausedRef.current) {
+          setConvState('idle'); convStateRef.current = 'idle'
+          if (voiceModeRef.current && !micMutedRef.current) setTimeout(() => startMic(), 400)
+        }
       }
     }
 
@@ -659,16 +679,16 @@ export default function CookingSession() {
   async function sendMessage(text, isRetry = false) {
     if (sending || sessionEnded) return
 
-    // Repeat
+    // Repeat — works even while paused (tap button)
     if (text === '__REPEAT__') {
       const last = [...messages].reverse().find(m => m.role === 'assistant')
-      if (last && voiceMode && chefRef.current?.voice_id) {
+      if (last && voiceMode && chefRef.current?.voice_id && !pausedRef.current) {
         stopMic(); stopAllAudio()
         const aq = audioQueueRef.current; aq.reset(); aq.setRate(playbackRate)
         aq.onStateChange = (s) => { setConvState(s); convStateRef.current = s }
-        aq.onFinished = () => { setConvState('idle'); convStateRef.current = 'idle'; if (voiceModeRef.current && !micMutedRef.current) setTimeout(() => startMic(), 400) }
+        aq.onFinished = () => { setConvState('idle'); convStateRef.current = 'idle'; if (voiceModeRef.current && !micMutedRef.current && !pausedRef.current) setTimeout(() => startMic(), 400) }
         setConvState('chef_speaking'); convStateRef.current = 'chef_speaking'
-        if (voiceModeRef.current) vadRef.current?.start()
+        if (voiceModeRef.current && !pausedRef.current) vadRef.current?.start()
         const sentences = last.content.match(/[^.!?]+[.!?]+\s*/g) || [last.content]
         for (const s of sentences) { if (aq.cancelled) break; await speakSentence(s.trim(), chefRef.current.voice_id) }
       }
@@ -677,7 +697,7 @@ export default function CookingSession() {
 
     if (!text.trim()) return
     stopMic(); stopAllAudio(); vadRef.current?.stop()
-    setConvState('thinking'); convStateRef.current = 'thinking'
+    if (!pausedRef.current) { setConvState('thinking'); convStateRef.current = 'thinking' }
 
     if (isOffline && !isRetry) { setMessages(p => [...p, { role: 'user', content: text.trim() }]); setPendingMessages(p => [...p, text.trim()]); setInput(''); return }
 
@@ -690,7 +710,6 @@ export default function CookingSession() {
     if (lt === 'next step' || lt === 'done' || lt === 'next') { nextStep = Math.min(currentStep + 1, (recipe.steps || []).length); setCurrentStep(nextStep) }
     else if (lt === 'start over') { nextStep = 1; setCurrentStep(1) }
 
-    // Detect substitutions mentioned by the user
     const subMatch = text.match(/(?:substitut|replac|swap|use|using)\w*\s+(.+?)(?:\s+(?:instead|for|rather)\s|$)/i)
     let currentSubs = substitutions
     if (subMatch) { currentSubs = [...substitutions, subMatch[0].trim()]; setSubstitutions(currentSubs) }
@@ -709,7 +728,6 @@ export default function CookingSession() {
         if (fullText) {
           setStreamingText(''); setMessages(p => [...p, { role: 'assistant', content: fullText }])
           const sm = fullText.match(/[Ss]tep\s+(\d+)/i); if (sm) setCurrentStep(parseInt(sm[1], 10))
-          // Track deflection usage — check if response matches a deflection line
           const pool = DEFLECTION_POOLS[chef.name] || []
           pool.forEach((d, i) => { if (fullText.includes(d.substring(0, 30))) setUsedDeflections(p => p.includes(i) ? p : [...p, i]) })
         } else { setStreamingText(''); setMessages(p => [...p, { role: 'assistant', content: 'Sorry, I had trouble responding. Could you try again?' }]) }
@@ -726,6 +744,7 @@ export default function CookingSession() {
 
   async function endSession() {
     stopAllAudio(); stopMic(); vadRef.current?.stop()
+    setPaused(false); pausedRef.current = false
     setConvState('idle'); convStateRef.current = 'idle'
     if (sessionId) await supabase.from('cooking_sessions').update({ completed_at: new Date().toISOString(), conversation_history: messages, portions }).eq('id', sessionId)
     clearCachedSession()
@@ -737,12 +756,12 @@ export default function CookingSession() {
   function toggleVoiceMode() {
     const next = !voiceMode; setVoiceMode(next); voiceModeRef.current = next
     if (!next) { stopMic(); stopAllAudio(); vadRef.current?.stop(); setConvState('idle'); convStateRef.current = 'idle' }
-    else if (convStateRef.current !== 'chef_speaking' && convStateRef.current !== 'thinking') startMic()
+    else if (convStateRef.current !== 'chef_speaking' && convStateRef.current !== 'thinking' && !pausedRef.current) startMic()
   }
   function toggleMute() {
     const next = !micMuted; setMicMuted(next); micMutedRef.current = next
     if (next) stopMic()
-    else if (convStateRef.current !== 'chef_speaking' && convStateRef.current !== 'thinking') startMic()
+    else if (convStateRef.current !== 'chef_speaking' && convStateRef.current !== 'thinking' && !pausedRef.current) startMic()
   }
 
   const speedOptions = [0.75, 1, 1.25, 1.5]
@@ -762,8 +781,8 @@ export default function CookingSession() {
     </div>
   )
 
-  const stateLabel = convState === 'chef_speaking' ? 'Chef is speaking...' : convState === 'listening' ? 'Listening...' : convState === 'thinking' ? 'Thinking...' : null
-  const stateColor = convState === 'chef_speaking' ? 'text-amber-gold' : convState === 'listening' ? 'text-red-400' : convState === 'thinking' ? 'text-blue-400' : ''
+  const stateLabel = convState === 'paused' ? 'Session Paused' : convState === 'chef_speaking' ? 'Chef is speaking...' : convState === 'listening' ? 'Listening...' : convState === 'thinking' ? 'Thinking...' : null
+  const stateColor = convState === 'paused' ? 'text-orange-400' : convState === 'chef_speaking' ? 'text-amber-gold' : convState === 'listening' ? 'text-red-400' : convState === 'thinking' ? 'text-blue-400' : ''
 
   return (
     <div className="flex flex-col" style={{ height: viewportHeight ? `${viewportHeight - 65}px` : 'calc(100dvh - 65px)' }}>
@@ -771,6 +790,10 @@ export default function CookingSession() {
       {isOffline && <div className="bg-amber-gold/20 border-b border-amber-gold/30 px-4 py-2 text-center shrink-0"><span className="text-amber-gold text-sm font-medium">Reconnecting...</span></div>}
 
       <div className="bg-dark-card border-b border-dark-border px-3 py-2 flex items-center justify-between shrink-0 gap-1">
+        {/* Pause/Resume button */}
+        <button onClick={togglePause} className={`flex items-center gap-1.5 min-h-[36px] px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${paused ? 'bg-orange-500/20 border border-orange-500/50 text-orange-400' : 'bg-neutral-800 border border-dark-border text-neutral-400 hover:border-neutral-600'}`}>
+          {paused ? <><PlayIcon className="w-3.5 h-3.5" /><span>Resume</span></> : <><PauseIcon className="w-3.5 h-3.5" /><span>Pause</span></>}
+        </button>
         <button onClick={toggleVoiceMode} className={`flex items-center gap-1.5 min-h-[36px] px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${voiceMode ? 'bg-amber-gold/20 border border-amber-gold/50 text-amber-gold' : 'bg-neutral-800 border border-dark-border text-neutral-400'}`}>
           {voiceMode ? <><SpeakerIcon className="w-3.5 h-3.5" on={true} /><span>Voice</span></> : <span>Text Mode</span>}
         </button>
@@ -779,7 +802,6 @@ export default function CookingSession() {
             <MicIcon className="w-3.5 h-3.5" /><span>{micMuted ? 'Muted' : 'Mic On'}</span>
           </button>
         )}
-        {/* Serving count badge */}
         <span className="flex items-center gap-1 text-xs font-medium text-neutral-400 bg-neutral-800 border border-dark-border px-2.5 py-1 rounded-full">
           <span className="text-amber-gold font-semibold">{portions}</span> servings
         </span>
@@ -791,13 +813,23 @@ export default function CookingSession() {
         </div>
       </div>
 
-      {interrupted && (
+      {/* Paused banner */}
+      {paused && (
+        <div className="bg-orange-500/15 border-b border-orange-500/30 px-4 py-2.5 text-center shrink-0">
+          <span className="text-sm font-semibold text-orange-400 flex items-center justify-center gap-2">
+            <PauseIcon className="w-4 h-4" />
+            Session paused — tap Resume or use buttons below
+          </span>
+        </div>
+      )}
+
+      {interrupted && !paused && (
         <div className="bg-amber-gold/20 border-b border-amber-gold/40 px-4 py-1.5 text-center shrink-0 animate-pulse">
           <span className="text-xs font-semibold text-amber-gold">Heard you — go ahead</span>
         </div>
       )}
 
-      {!interrupted && stateLabel && (
+      {!interrupted && !paused && stateLabel && convState !== 'paused' && (
         <div className="bg-dark-card/80 border-b border-dark-border px-4 py-1.5 text-center shrink-0">
           <span className={`text-xs font-medium ${stateColor} flex items-center justify-center gap-2`}>
             {convState === 'chef_speaking' && <SpeakerIcon className="w-3.5 h-3.5" on={true} />}
@@ -805,7 +837,7 @@ export default function CookingSession() {
             {convState === 'thinking' && <span className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />}
             {stateLabel}
             {convState === 'chef_speaking' && (
-              <button onClick={() => { stopAllAudio(); vadRef.current?.stop(); setConvState('idle'); convStateRef.current = 'idle'; if (voiceModeRef.current && !micMutedRef.current) setTimeout(() => startMic(), 150) }}
+              <button onClick={() => { stopAllAudio(); vadRef.current?.stop(); setConvState('idle'); convStateRef.current = 'idle'; if (voiceModeRef.current && !micMutedRef.current && !pausedRef.current) setTimeout(() => startMic(), 150) }}
                 className="text-neutral-500 hover:text-white ml-1 cursor-pointer text-sm">skip</button>
             )}
           </span>
@@ -813,7 +845,7 @@ export default function CookingSession() {
       )}
 
       {activeStep && (
-        <div className="bg-dark-card border-b border-dark-border px-4 py-3 shrink-0">
+        <div className={`bg-dark-card border-b border-dark-border px-4 py-3 shrink-0 ${paused ? 'opacity-70' : ''}`}>
           <div className="flex items-center justify-between mb-1">
             <span className="text-amber-gold font-semibold text-sm">Step {activeStep.step_number} of {steps.length}</span>
             {activeStep.duration_minutes > 0 && <span className="text-xs bg-neutral-800 text-neutral-400 px-2 py-0.5 rounded">{activeStep.timer_needed ? '\u23F1\uFE0F' : '\u23F0'} {activeStep.duration_minutes} min</span>}
@@ -856,7 +888,7 @@ export default function CookingSession() {
       <form onSubmit={handleSubmit} className="px-4 pb-4 pt-2 shrink-0">
         <div className="flex gap-2 items-center">
           <input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value)}
-            placeholder={voiceMode ? (convState === 'listening' ? 'Listening... or type here' : 'Type here or just speak...') : 'Ask your sous chef anything...'}
+            placeholder={paused ? 'Session paused — tap Resume or use buttons' : voiceMode ? (convState === 'listening' ? 'Listening... or type here' : 'Type here or just speak...') : 'Ask your sous chef anything...'}
             disabled={sending}
             className="flex-1 min-h-[48px] bg-dark-card border border-dark-border rounded-xl px-4 py-3 text-[16px] text-white placeholder-neutral-600 focus:outline-none focus:border-amber-gold/50 disabled:opacity-50" />
           <button type="submit" disabled={sending || !input.trim()}
