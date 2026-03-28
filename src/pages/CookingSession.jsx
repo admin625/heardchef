@@ -511,8 +511,14 @@ export default function CookingSession() {
   const baseServings = recipe.servings || 4
   const multiplier = portions / baseServings
 
+  // Pre-compute all scaled ingredients once
+  const scaledIngredients = (recipe.ingredients || []).map(i => ({
+    ...i,
+    scaledAmount: scaleAmount(i.amount, multiplier)
+  }))
+
   // Read Mode: get ingredients relevant to the active step
-  const readStepIngredients = activeStep ? (recipe.ingredients || []).filter(i => ingredientMatchesStep(i.item, activeStep.instruction || '')) : []
+  const readStepIngredients = activeStep ? scaledIngredients.filter(i => ingredientMatchesStep(i.item, activeStep.instruction || '')) : []
 
   if (sessionEnded) return (
     <div className="pt-8 text-center">
@@ -594,6 +600,7 @@ export default function CookingSession() {
         <div className={`bg-dark-card border-b border-dark-border px-4 py-3 shrink-0 ${paused && !readMode ? 'opacity-70' : ''}`}>
           <div className="flex items-center justify-between mb-1">
             <span className="text-amber-gold font-semibold text-sm">Step {activeStep.step_number} of {steps.length}</span>
+            {multiplier !== 1 && <span className="text-xs text-amber-gold/60 font-normal ml-2">| Scaled for {portions} servings</span>}
             {activeStep.duration_minutes > 0 && <span className="text-xs bg-neutral-800 text-neutral-400 px-2 py-0.5 rounded">{activeStep.timer_needed ? '\u23F1\uFE0F' : '\u23F0'} {activeStep.duration_minutes} min</span>}
           </div>
           {!readMode && <p className="text-sm text-neutral-300 leading-relaxed line-clamp-2">{activeStep.instruction}</p>}
@@ -616,7 +623,7 @@ export default function CookingSession() {
                     {readStepIngredients.map((ing, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm text-neutral-300">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-gold mt-1.5 shrink-0" />
-                        <span>{scaleAmount(ing.amount, multiplier)} {ing.unit} {ing.item}</span>
+                        <span>{ing.scaledAmount} {ing.unit} {ing.item}</span>
                       </li>
                     ))}
                   </ul>
@@ -629,11 +636,26 @@ export default function CookingSession() {
                 </div>
               )}
 
-              {activeStep.chef_tip && (
+{activeStep.chef_tip && (
                 <div className="bg-amber-gold/5 border-l-2 border-amber-gold px-4 py-3 rounded-r-lg">
                   <p className="text-sm text-amber-light"><span className="font-semibold">Chef&apos;s Tip:</span> {activeStep.chef_tip}</p>
                 </div>
               )}
+
+              {/* Full scaled ingredient list */}
+              <details className="mt-4">
+                <summary className="text-sm text-neutral-500 cursor-pointer hover:text-neutral-300 transition-colors">
+                  View all ingredients{multiplier !== 1 ? ` (scaled for ${portions} servings)` : ""}
+                </summary>
+                <ul className="mt-2 space-y-1.5 pl-1">
+                  {scaledIngredients.map((ing, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-neutral-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-neutral-600 mt-1.5 shrink-0" />
+                      <span>{ing.scaledAmount} {ing.unit} {ing.item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             </div>
           )}
         </div>
