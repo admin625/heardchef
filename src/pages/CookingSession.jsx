@@ -186,7 +186,18 @@ async function readStream(response, onChunk) {
 
 const CACHE_KEY = 'heardchef_session_cache'
 function cacheSession(d) { try { localStorage.setItem(CACHE_KEY, JSON.stringify(d)) } catch { /* ok */ } }
-function getCachedSession() { try { const r = localStorage.getItem(CACHE_KEY); return r ? JSON.parse(r) : null } catch { return null } }
+function getCachedSession() {
+  try {
+    const r = localStorage.getItem(CACHE_KEY)
+    if (!r) return null
+    const parsed = JSON.parse(r)
+    if (parsed?.chef?.name && !CHEF_IDENTITIES[parsed.chef.name]) {
+      localStorage.removeItem(CACHE_KEY)
+      return null
+    }
+    return parsed
+  } catch { return null }
+}
 function clearCachedSession() { try { localStorage.removeItem(CACHE_KEY) } catch { /* ok */ } }
 
 const SpeechRecognition = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null
