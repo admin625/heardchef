@@ -70,6 +70,15 @@ function formatScaledNumber(n) {
   return n.toFixed(1).replace(/\.0$/, '')
 }
 
+const FILLER_WORDS = new Set(['fresh', 'dried', 'chopped', 'minced', 'sliced', 'diced', 'ground', 'whole', 'large', 'small', 'medium', 'fine', 'finely', 'thinly', 'coarsely', 'unsalted', 'salted', 'extra', 'virgin', 'organic', 'frozen', 'canned', 'boneless', 'skinless'])
+function ingredientMatchesStep(item, instruction) {
+  if (!item || !instruction) return false
+  const instrLower = instruction.toLowerCase()
+  const cleaned = item.replace(/\(.*?\)/g, '').replace(/,/g, ' ').toLowerCase().trim()
+  const words = cleaned.split(/\s+/).filter(w => w.length > 2 && !FILLER_WORDS.has(w))
+  return words.some(w => instrLower.includes(w))
+}
+
 function buildSystemPrompt(chef, recipe, portions, currentStepNum, substitutions, usedDeflections) {
   const steps = recipe.steps || []
   const currentStepObj = steps.find(s => s.step_number === currentStepNum)
