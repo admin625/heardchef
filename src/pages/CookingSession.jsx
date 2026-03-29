@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, Component } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -235,7 +235,7 @@ function PauseIcon({ className }) { return <svg className={className} viewBox="0
 function PlayIcon({ className }) { return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3" /></svg> }
 function BookIcon({ className }) { return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg> }
 
-export default function CookingSession() {
+function CookingSessionInner() {
   const { recipeId } = useParams()
   const [searchParams] = useSearchParams()
   const [recipe, setRecipe] = useState(null)
@@ -739,4 +739,31 @@ export default function CookingSession() {
       )}
     </div>
   )
+}
+
+// ─── TEMPORARY ERROR BOUNDARY (remove after debugging) ───
+class CookingSessionErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null, info: null } }
+  static getDerivedStateFromError(error) { return { error } }
+  componentDidCatch(error, info) { this.setState({ info }) }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 24, color: '#fff', background: '#1a1a1a', minHeight: '100dvh', fontFamily: 'monospace' }}>
+          <h2 style={{ color: '#f59e0b', marginBottom: 12 }}>CookingSession crashed</h2>
+          <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#ef4444', marginBottom: 12 }}>{this.state.error.toString()}</pre>
+          <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#a1a1aa', fontSize: 12 }}>{this.state.info?.componentStack}</pre>
+          <button onClick={() => { localStorage.removeItem('heardchef_session_cache'); window.location.reload() }}
+            style={{ marginTop: 16, padding: '10px 20px', background: '#f59e0b', color: '#1a1a1a', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}>
+            Clear cache & reload
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+export default function CookingSession() {
+  return <CookingSessionErrorBoundary><CookingSessionInner /></CookingSessionErrorBoundary>
 }
