@@ -84,7 +84,7 @@ function buildSystemPrompt(chef, recipe, portions, currentStepNum, substitutions
   const currentStepObj = steps.find(s => s.step_number === currentStepNum)
   const nextStepObj = steps.find(s => s.step_number === currentStepNum + 1)
 
-  const baseServings = recipe.servings || 4
+  const baseServings = recipe.servings || 2
   const multiplier = portions / baseServings
 
   const identity = CHEF_IDENTITIES[chef.name] || `You are ${chef.name}.\n\nPERSONALITY: ${chef.personality_description}\nVOICE STYLE: ${chef.voice_style}`
@@ -410,7 +410,7 @@ function CookingSessionInner() {
         const { data: cd } = await supabase.from('chefs').select('*').eq('id', rd.chef_id).single()
         setChef(cd); chefRef.current = cd; setRecipe(rd)
         const urlServings = parseInt(searchParams.get('servings'))
-        setPortions(urlServings > 0 && urlServings <= 12 ? urlServings : rd.servings)
+        setPortions(urlServings > 0 && urlServings <= 12 ? urlServings : (rd.servings || 2))
         const urlMode = searchParams.get('mode')
         if (urlMode === 'read') { setReadMode(true); readModeRef.current = true; setVoiceMode(false); voiceModeRef.current = false; setCurrentStep(1) }
       }
@@ -536,7 +536,7 @@ function CookingSessionInner() {
 
   const steps = recipe.steps || []
   const activeStep = steps.find(s => s.step_number === currentStep) || steps.find(s => s.step_number === 1)
-  const baseServings = recipe.servings || 4
+  const baseServings = recipe.servings || 2
   const multiplier = portions / baseServings
 
   // Pre-compute all scaled ingredients once
