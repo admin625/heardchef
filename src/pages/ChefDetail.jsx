@@ -3,6 +3,24 @@ import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import DifficultyBadge from '../components/DifficultyBadge'
 
+const ARCHETYPE_ACCENTS = {
+  'The American in Paris': { bg: '#4a1942', ring: '#7b2d6e', text: '#d4a0c9' },
+  'The Classicist':        { bg: '#1a2f1a', ring: '#2d5a2d', text: '#8fbf8f' },
+  'The Maverick':          { bg: '#3d1f1f', ring: '#6b3333', text: '#c98a8a' },
+  'The Perfectionist':     { bg: '#1a2433', ring: '#2d4466', text: '#8aa8cc' },
+  'The Original':          { bg: '#2d2a1f', ring: '#5a5233', text: '#c9bf8a' },
+  'The Grill':             { bg: '#331f10', ring: '#664020', text: '#cc9966' },
+  'The Craftsman':         { bg: '#1f2d2d', ring: '#335a5a', text: '#8abfbf' },
+  'The Host':              { bg: '#2d2d1f', ring: '#5a5a33', text: '#c9c98a' },
+  'The Indulgent':         { bg: '#2d1f2d', ring: '#5a335a', text: '#bf8abf' },
+}
+const DEFAULT_ACCENT = { bg: '#262626', ring: '#3a3a3a', text: '#a3a3a3' }
+
+function getInitials(name) {
+  const words = name.replace(/^The\s+/i, '').split(/\s+/).filter(w => !['in', 'of', 'the', 'and'].includes(w.toLowerCase()))
+  return words.map(w => w[0]).join('').toUpperCase().slice(0, 2)
+}
+
 export default function ChefDetail() {
   const { id } = useParams()
   const [chef, setChef] = useState(null)
@@ -48,15 +66,34 @@ export default function ChefDetail() {
       <Link to="/" className="text-amber-gold text-sm hover:underline">&larr; All Chefs</Link>
 
       <div className="mt-6 mb-8 text-center">
-        <div className="w-24 h-24 rounded-full bg-neutral-800 flex items-center justify-center mx-auto mb-4 text-5xl">
-          {chef.name === 'Anthony Bourdain' && '\uD83D\uDD2A'}
-          {chef.name === 'Jacques P\u00e9pin' && '\uD83C\uDF73'}
-          {chef.name === 'Julia Child' && '\uD83E\uDDC8'}
-          {chef.name === 'Ina Garten' && '\uD83C\uDF3F'}
-        </div>
-        <h1 className="text-3xl font-bold text-white mb-2">{chef.name}</h1>
-        <p className="text-amber-gold mb-3">{chef.cuisine_specialty}</p>
-        <p className="text-neutral-400 text-sm max-w-md mx-auto leading-relaxed">{chef.bio}</p>
+        {(() => {
+          const accent = ARCHETYPE_ACCENTS[chef.name] || DEFAULT_ACCENT
+          const initials = getInitials(chef.name)
+          return (
+            <>
+              <div
+                className="w-28 h-28 rounded-full flex items-center justify-center mx-auto mb-4"
+                style={{
+                  background: `radial-gradient(circle at 30% 30%, ${accent.ring}40, ${accent.bg})`,
+                  border: `2px solid ${accent.ring}`,
+                  boxShadow: `inset 0 2px 8px ${accent.ring}30, 0 0 0 1px ${accent.ring}20`,
+                }}
+              >
+                {chef.photo_url ? (
+                  <img src={chef.photo_url} alt={chef.name} className="w-full h-full rounded-full object-cover" />
+                ) : (
+                  <span className="text-4xl font-semibold tracking-wide" style={{ fontFamily: "'Playfair Display', serif", color: accent.text }}>
+                    {initials}
+                  </span>
+                )}
+              </div>
+              <h1 className="text-3xl font-bold text-white mb-1" style={{ fontFamily: "'Playfair Display', serif" }}>{chef.name}</h1>
+              {chef.tagline && <p className="text-sm italic mb-2" style={{ color: accent.text }}>"{chef.tagline}"</p>}
+              <p className="text-amber-gold text-sm mb-3">{chef.cuisine_specialty}</p>
+              <p className="text-neutral-400 text-sm max-w-md mx-auto leading-relaxed">{chef.bio}</p>
+            </>
+          )
+        })()}
       </div>
 
       <h2 className="text-xl font-semibold text-white mb-4">
