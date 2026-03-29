@@ -574,9 +574,6 @@ function CookingSessionInner() {
 
         {!readMode && (
           <>
-            <button onClick={togglePause} className={`flex items-center gap-1.5 min-h-[36px] px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${paused ? 'bg-orange-500/20 border border-orange-500/50 text-orange-400' : 'bg-neutral-800 border border-dark-border text-neutral-400 hover:border-neutral-600'}`}>
-              {paused ? <><PlayIcon className="w-3.5 h-3.5" /><span>Resume</span></> : <><PauseIcon className="w-3.5 h-3.5" /><span>Pause</span></>}
-            </button>
             {voiceMode && speechSupported && (
               <button onClick={toggleMute} className={`flex items-center gap-1.5 min-h-[36px] px-3 py-1 rounded-full text-xs font-medium cursor-pointer ${micMuted ? 'bg-red-500/20 border border-red-500/50 text-red-400' : 'bg-neutral-800 border border-dark-border text-neutral-400'}`}>
                 <MicIcon className="w-3.5 h-3.5" /><span>{micMuted ? 'Muted' : 'Mic On'}</span>
@@ -727,6 +724,8 @@ function CookingSessionInner() {
       ) : (
         <>
           <div className="px-4 py-2 flex gap-2 overflow-x-auto shrink-0">
+            <button onClick={togglePause}
+              className={`shrink-0 min-h-[48px] min-w-[48px] text-sm font-medium px-5 py-3 rounded-full transition-colors cursor-pointer active:scale-95 ${paused ? 'bg-orange-500/20 border border-orange-500/50 text-orange-400' : 'bg-dark-card border border-dark-border text-neutral-300 hover:border-amber-gold/50 hover:text-amber-gold'}`}>{paused ? 'Resume' : 'Pause'}</button>
             {['Done', 'Next Step', 'Repeat', 'Help', 'Start Over'].map(label => (
               <button key={label} onClick={() => sendMessage(label === 'Repeat' ? '__REPEAT__' : label)} disabled={sending}
                 className="shrink-0 min-h-[48px] min-w-[48px] bg-dark-card border border-dark-border text-neutral-300 text-sm font-medium px-5 py-3 rounded-full hover:border-amber-gold/50 hover:text-amber-gold transition-colors disabled:opacity-50 cursor-pointer active:scale-95">{label}</button>
