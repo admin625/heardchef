@@ -297,6 +297,8 @@ function CookingSessionInner() {
   const convStateRef = useRef('idle')
   const audioQueueRef = useRef(new AudioQueue())
   const vadRef = useRef(null)
+  const listenTimeoutRef = useRef(null)
+  const silentCyclesRef = useRef(0)
   const chefRef = useRef(null)
   const pausedRef = useRef(false)
   const readModeRef = useRef(false)
@@ -323,8 +325,23 @@ function CookingSessionInner() {
     if (!speechSupported || !recognitionRef.current || micMutedRef.current || !voiceModeRef.current) return
     if (convStateRef.current === 'chef_speaking') return
     try { recognitionRef.current.start(); setConvState('listening'); convStateRef.current = 'listening' } catch { /* ok */ }
+    // Start listen timeout — if no speech after 8s, break the loop
+    if (listenTimeoutRef.current) clearTimeout(listenTimeoutRef.current)
+    listenTimeoutRef.current = setTimeout(() => {
+      if (convStateRef.current !== 'listening') return
+      stopMic()
+      if (silentCyclesRef.current === 0) {
+        // First timeout: re-speak the current step
+        silentCyclesRef.current = 1
+        sendMessageRef.current?.('__REPEAT__')
+      } else {
+        // Second consecutive timeout: go fully idle
+        silentCyclesRef.current = 0
+      }
+    }, 8000)
   }
   function stopMic() {
+    if (listenTimeoutRef.current) { clearTimeout(listenTimeoutRef.current); listenTimeoutRef.current = null }
     if (!recognitionRef.current) return
     try { recognitionRef.current.stop() } catch { /* ok */ }
     if (convStateRef.current === 'listening') { setConvState('idle'); convStateRef.current = 'idle' }
@@ -384,9 +401,11 @@ function CookingSessionInner() {
     if (!speechSupported) return
     const recognition = new SpeechRecognition()
     recognition.continuous = false; recognition.interimResults = false; recognition.lang = 'en-US'
-    recognition.onresult = (event) => { const transcript = event.results[0]?.[0]?.transcript?.trim(); if (!transcript) return; if (/repeat\s*that|say\s*that\s*again/i.test(transcript)) { sendMessageRef.current?.('__REPEAT__'); return }; sendMessageRef.current?.(transcript) }
+    recognition.onresult = (event) => { const transcript = event.results[0]?.[0]?.transcript?.trim(); if (!transcript) return; if (listenTimeoutRef.current) { clearTimeout(listenTimeoutRef.current); listenTimeoutRef.current = null }; silentCyclesRef.current = 0; if (/repeat\s*that|say\s*that\s*again/i.test(transcript)) { sendMessageRef.current?.('__REPEAT__'); return }; sendMessageRef.current?.(transcript) }
     recognition.onend = () => {
       if (pausedRef.current || readModeRef.current) { if (convStateRef.current === 'listening') { setConvState('idle'); convStateRef.current = 'idle' }; return }
+      // If listen timeout already fired and handled the cycle, don't restart
+      if (!listenTimeoutRef.current && convStateRef.current === 'idle') return
       if (voiceModeRef.current && !micMutedRef.current && convStateRef.current !== 'chef_speaking' && convStateRef.current !== 'thinking') {
         setTimeout(() => { if (pausedRef.current || readModeRef.current) return; if (voiceModeRef.current && !micMutedRef.current && convStateRef.current !== 'chef_speaking' && convStateRef.current !== 'thinking') { try { recognition.start(); setConvState('listening'); convStateRef.current = 'listening' } catch { /* ok */ } } else { if (convStateRef.current === 'listening') { setConvState('idle'); convStateRef.current = 'idle' } } }, 150)
       } else { if (convStateRef.current === 'listening') { setConvState('idle'); convStateRef.current = 'idle' } }
@@ -394,8 +413,10 @@ function CookingSessionInner() {
     recognition.onerror = (event) => {
       if (event.error === 'not-allowed') { setMicPermission('denied'); return }
       if (pausedRef.current || readModeRef.current) return
+      // If listen timeout already fired, don't restart
+      if (!listenTimeoutRef.current && convStateRef.current === 'idle') return
       if (voiceModeRef.current && !micMutedRef.current && event.error !== 'not-allowed' && convStateRef.current !== 'chef_speaking') {
-        setTimeout(() => { if (pausedRef.current || readModeRef.current) return; if (voiceModeRef.current && !micMutedRef.current && convStateRef.current !== 'chef_speaking') { try { recognition.start(); setConvState('listening'); convStateRef.current = 'listening' } catch { /* ok */ } } }, event.error === 'no-speech' ? 300 : 1000)
+        setTimeout(() => { if (pausedRef.current || readModeRef.current) return; if (!listenTimeoutRef.current && convStateRef.current === 'idle') return; if (voiceModeRef.current && !micMutedRef.current && convStateRef.current !== 'chef_speaking') { try { recognition.start(); setConvState('listening'); convStateRef.current = 'listening' } catch { /* ok */ } } }, event.error === 'no-speech' ? 300 : 1000)
       }
     }
     recognitionRef.current = recognition
@@ -437,7 +458,7 @@ function CookingSessionInner() {
   async function streamWithTTS(fetchRes, onFullText) {
     const aq = audioQueueRef.current; aq.reset(); aq.setRate(playbackRate)
     aq.onStateChange = (s) => { if (!pausedRef.current && !readModeRef.current) { setConvState(s); convStateRef.current = s } }
-    aq.onFinished = () => { vadRef.current?.stop(); if (!pausedRef.current && !readModeRef.current) { setConvState('idle'); convStateRef.current = 'idle'; if (voiceModeRef.current && !micMutedRef.current) setTimeout(() => startMic(), 150) } }
+    aq.onFinished = () => { vadRef.current?.stop(); silentCyclesRef.current = 0; if (!pausedRef.current && !readModeRef.current) { setConvState('idle'); convStateRef.current = 'idle'; if (voiceModeRef.current && !micMutedRef.current) setTimeout(() => startMic(), 150) } }
     stopMic(); if (!pausedRef.current && !readModeRef.current) { setConvState('thinking'); convStateRef.current = 'thinking' }
     if (voiceModeRef.current && !pausedRef.current && !readModeRef.current) vadRef.current?.start()
     let fullText = ''; let sentenceBuffer = ''; const voiceId = chefRef.current?.voice_id
@@ -488,7 +509,7 @@ function CookingSessionInner() {
       if (last && voiceMode && chefRef.current?.voice_id && !pausedRef.current && !readModeRef.current) {
         stopMic(); stopAllAudio(); const aq = audioQueueRef.current; aq.reset(); aq.setRate(playbackRate)
         aq.onStateChange = (s) => { setConvState(s); convStateRef.current = s }
-        aq.onFinished = () => { setConvState('idle'); convStateRef.current = 'idle'; if (voiceModeRef.current && !micMutedRef.current && !pausedRef.current && !readModeRef.current) setTimeout(() => startMic(), 400) }
+        aq.onFinished = () => { silentCyclesRef.current = 0; setConvState('idle'); convStateRef.current = 'idle'; if (voiceModeRef.current && !micMutedRef.current && !pausedRef.current && !readModeRef.current) setTimeout(() => startMic(), 400) }
         setConvState('chef_speaking'); convStateRef.current = 'chef_speaking'
         if (voiceModeRef.current && !pausedRef.current && !readModeRef.current) vadRef.current?.start()
         const sentences = last.content.match(/[^.!?]+[.!?]+\s*/g) || [last.content]
