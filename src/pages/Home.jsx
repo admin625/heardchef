@@ -95,7 +95,7 @@ export default function Home() {
               to={`/chef/${chef.id}`}
               className="group relative flex flex-col items-center text-center rounded-2xl p-5 sm:p-6 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
               style={{
-                background: `linear-gradient(160deg, ${accent.bg} 0%, #1a1a1a 70%)`,
+                background: `linear-gradient(160deg, ${accent.bg} 0%, var(--surface-bg) 70%)`,
                 border: `1px solid ${accent.ring}33`,
               }}
               onMouseEnter={e => e.currentTarget.style.borderColor = accent.ring + '88'}
@@ -176,12 +176,12 @@ export default function Home() {
             <div
               key={arch.name}
               className="relative flex flex-col items-center text-center rounded-2xl p-4 sm:p-5 opacity-50 cursor-default select-none"
-              style={{ background: '#1a1a1a', border: '1px solid #2a2a2a' }}
+              style={{ background: 'var(--surface-bg)', border: '1px solid var(--surface-border)' }}
             >
               {/* Muted Signet */}
               <div
                 className="w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center mb-3"
-                style={{ background: '#222', border: '2px solid #333' }}
+                style={{ background: 'var(--surface-card)', border: '2px solid var(--surface-border)' }}
               >
                 <span
                   className="text-lg sm:text-xl font-semibold text-neutral-600"

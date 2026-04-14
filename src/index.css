@@ -1,16 +1,44 @@
 @import "tailwindcss";
 
+/* Class-based dark mode for Tailwind CSS 4 */
+@variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-amber-gold: #f59e0b;
   --color-amber-light: #fbbf24;
-  --color-dark-bg: #1a1a1a;
-  --color-dark-card: #262626;
-  --color-dark-border: #3a3a3a;
+  /* Surface colors — these resolve to CSS vars that swap with the theme.
+     Every component using bg-dark-bg, bg-dark-card, border-dark-border
+     automatically gets the right color for light or dark mode. */
+  --color-dark-bg: var(--surface-bg);
+  --color-dark-card: var(--surface-card);
+  --color-dark-border: var(--surface-border);
+  /* Keep explicit dark/light tokens for cases that need them */
+  --color-light-bg: #fafaf9;
+  --color-light-card: #ffffff;
+  --color-light-border: #e5e5e5;
+}
+
+/* Theme-aware CSS custom properties — swap via .dark on <html> */
+:root {
+  --surface-bg: #fafaf9;
+  --surface-card: #ffffff;
+  --surface-border: #e5e5e5;
+  --text-primary: #1a1a1a;
+  --text-secondary: #525252;
+  --text-muted: #737373;
+}
+:root.dark {
+  --surface-bg: #1a1a1a;
+  --surface-card: #262626;
+  --surface-border: #3a3a3a;
+  --text-primary: #e5e5e5;
+  --text-secondary: #a3a3a3;
+  --text-muted: #737373;
 }
 
 body {
-  background-color: #1a1a1a;
-  color: #e5e5e5;
+  background-color: var(--surface-bg);
+  color: var(--text-primary);
   font-family: system-ui, -apple-system, sans-serif;
   margin: 0;
   min-height: 100vh;

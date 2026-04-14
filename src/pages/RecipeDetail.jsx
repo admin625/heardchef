@@ -368,7 +368,7 @@ export default function RecipeDetail() {
       {/* Phone Number Modal */}
       {showPhoneModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => !sending && setShowPhoneModal(false)}>
-          <div className="bg-neutral-900 border border-dark-border rounded-2xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+          <div className="border rounded-2xl p-6 w-full max-w-sm" style={{ backgroundColor: 'var(--surface-card)', borderColor: 'var(--surface-border)' }} onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-white mb-2">Send to WhatsApp</h3>
             <p className="text-neutral-400 text-sm mb-4">
               Enter your WhatsApp number and we&apos;ll send the shopping list for <span className="text-amber-gold">{recipe.title}</span>.
