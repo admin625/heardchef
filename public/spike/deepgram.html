@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>HeardChef Spike — Deepgram STT Path B</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <style>
+    :root {
+      --bg: #1a1a1a;
+      --card: #232323;
+      --border: #333;
+      --text: #f5f5f5;
+      --muted: #999;
+      --gold: #f59e0b;
+      --green: #10b981;
+      --red: #ef4444;
+      --blue: #3b82f6;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; }
+    body { padding: 16px 16px calc(16px + env(safe-area-inset-bottom)) 16px; }
+    h1 { font-size: 18px; margin: 0 0 4px; color: var(--gold); }
+    h2 { font-size: 13px; margin: 0 0 6px; color: var(--gold); text-transform: uppercase; letter-spacing: 0.05em; }
+    p.sub { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+    section { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+    button { font: inherit; padding: 10px 14px; min-height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; }
+    button.primary { background: var(--gold); color: #1a1a1a; border-color: var(--gold); font-weight: 600; }
+    button.danger { background: rgba(239, 68, 68, 0.15); border-color: var(--red); color: var(--red); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .row + .row { margin-top: 8px; }
+    label.toggle { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); cursor: pointer; padding: 6px 4px; }
+    label.toggle input { width: 18px; height: 18px; }
+    .grid { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: 13px; font-family: ui-monospace, monospace; }
+    .grid dt { color: var(--muted); }
+    .grid dd { margin: 0; color: var(--text); word-break: break-all; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .pill.ok { background: rgba(16, 185, 129, 0.15); color: var(--green); }
+    .pill.bad { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+    .pill.idle { background: rgba(153, 153, 153, 0.15); color: var(--muted); }
+    .pill.active { background: rgba(245, 158, 11, 0.15); color: var(--gold); }
+    .transcript-area { min-height: 80px; padding: 10px; background: #181818; border: 1px solid var(--border); border-radius: 6px; font-size: 15px; line-height: 1.4; }
+    .interim { color: var(--muted); font-style: italic; }
+    .final { color: var(--text); }
+    .chat-area { min-height: 60px; padding: 10px; background: #181818; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; line-height: 1.4; white-space: pre-wrap; }
+    pre.log { background: #0e0e0e; border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: 11px; line-height: 1.45; max-height: 320px; overflow: auto; margin: 0; white-space: pre-wrap; word-break: break-word; }
+    .log-line { display: block; }
+    .log-line.error { color: var(--red); }
+    .log-line.warn { color: var(--gold); }
+    .log-line.event { color: var(--blue); }
+    .gate { text-align: center; padding: 40px 20px; }
+    .gate p { color: var(--muted); font-size: 14px; max-width: 480px; margin: 0 auto 20px; line-height: 1.5; }
+    .hidden { display: none; }
+    .metric { font-family: ui-monospace, monospace; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>HeardChef Spike &mdash; Deepgram STT (Path B)</h1>
+  <p class="sub">Phase 0 spike. Validates: MediaRecorder &rarr; WS &rarr; Deepgram &rarr; transcript &rarr; /api/chat &rarr; /api/tts &rarr; playback. iOS Safari tab, iOS PWA, desktop Chrome.</p>
+
+  <section id="gate" class="gate">
+    <p>This page consumes Deepgram and Anthropic API credit. Press start to begin. The capability probe runs immediately; no audio or chat traffic until you press <strong>Start STT</strong> below.</p>
+    <button class="primary" id="gateBtn">Begin spike</button>
+  </section>
+
+  <main id="main" class="hidden">
+    <section>
+      <h2>Environment</h2>
+      <dl class="grid" id="probe"></dl>
+    </section>
+
+    <section>
+      <h2>Controls</h2>
+      <div class="row">
+        <button class="primary" id="startBtn" disabled>Start STT</button>
+        <button id="stopBtn" disabled>Stop</button>
+        <button id="sendChatBtn" disabled>Send last final &rarr; chat</button>
+        <button id="ttsTestBtn">Test TTS only</button>
+      </div>
+      <div class="row">
+        <label class="toggle"><input type="checkbox" id="autoLoop" /> Auto-loop (chat &amp; TTS on each utterance end)</label>
+        <label class="toggle"><input type="checkbox" id="wakeLockToggle" /> Wake lock</label>
+      </div>
+    </section>
+
+    <section>
+      <h2>Status</h2>
+      <dl class="grid" id="status">
+        <dt>STT state</dt><dd id="stSTT"><span class="pill idle">idle</span></dd>
+        <dt>WS state</dt><dd id="stWS"><span class="pill idle">closed</span></dd>
+        <dt>MimeType</dt><dd id="stMime">&mdash;</dd>
+        <dt>Audio chunks sent</dt><dd id="stChunks" class="metric">0</dd>
+        <dt>Bytes sent</dt><dd id="stBytes" class="metric">0</dd>
+        <dt>WS reconnects</dt><dd id="stReconnects" class="metric">0</dd>
+        <dt>Last latency (chunk &rarr; final)</dt><dd id="stLatency" class="metric">&mdash;</dd>
+        <dt>Latency p50 / p95</dt><dd id="stLatencyAgg" class="metric">&mdash;</dd>
+        <dt>Wake lock</dt><dd id="stWake"><span class="pill idle">off</span></dd>
+        <dt>Page visible</dt><dd id="stVis"><span class="pill ok">visible</span></dd>
+      </dl>
+    </section>
+
+    <section>
+      <h2>Transcript</h2>
+      <div class="transcript-area" id="transcriptArea">
+        <span class="interim" id="interim"></span>
+        <span class="final" id="finals"></span>
+      </div>
+    </section>
+
+    <section>
+      <h2>Chef reply</h2>
+      <div class="chat-area" id="chatArea">&mdash;</div>
+    </section>
+
+    <section>
+      <h2>Log</h2>
+      <div class="row" style="margin-bottom: 8px;">
+        <button id="copyLogBtn">Copy log</button>
+        <button id="clearLogBtn">Clear</button>
+      </div>
+      <pre class="log" id="log"></pre>
+    </section>
+  </main>
+
+  <script src="./deepgram.js"></script>
+</body>
+</html>
