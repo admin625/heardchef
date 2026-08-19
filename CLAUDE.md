@@ -41,6 +41,7 @@ This is a **standalone product**. It is one of four fully isolated products in a
 | **AI Model** | `claude-sonnet-4-20250514` |
 | **Embeddings** | OpenAI `text-embedding-ada-002` |
 | **Voice** | ElevenLabs (Creator plan) — chef-specific voice IDs |
+| **TTS Model** | ElevenLabs `eleven_monolingual_v1` |
 | **SMS/WhatsApp** | Twilio (shopping list delivery) |
 | **Automation** | n8n — HeardChef workflow group only |
 

@@ -32,6 +32,12 @@
 
 ---
 
+## [0.1.1] — 2026-03-14
+
+- RAG knowledge base: 168 entries across 7 tables, pgvector enabled
+
+---
+
 ## [0.1.0] — Initial Build
 
 - React 19 + Tailwind CSS 4 + Vite + Supabase JS
